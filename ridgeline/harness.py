@@ -44,6 +44,14 @@ def run_cell(sample, radius=6.0, sigmas=(1, 2, 3), seed=0):
     snapped_rand = snap_random(det2, ridge_disp_mag, seed=seed)
     rec_rand = geom.nearest_distance(snapped_rand, ref)
 
+    # frangi-independence arm: snap to the producer's own operator. If our sato snap
+    # only matched this, the witness would just be re-running their idea. Reporting
+    # the frangi recovery and how far the two snaps diverge answers that objection.
+    _, snapped_frangi, _, det_f = snap(vol, mask, head="frangi", sigmas=sigmas, radius=radius)
+    rec_frangi = geom.nearest_distance(snapped_frangi, ref)
+    frangi_div = float(np.median(np.linalg.norm(snapped_ridge - snapped_frangi, axis=1))) \
+        if len(snapped_ridge) == len(snapped_frangi) else float("nan")
+
     row = {
         "kind": sample["kind"],
         "planted": sample.get("k", sample.get("extra", sample.get("amp"))),
@@ -52,6 +60,8 @@ def run_cell(sample, radius=6.0, sigmas=(1, 2, 3), seed=0):
         "ridge_recovery": round(rec_ridge, 3),
         "brightest_recovery": round(rec_bright, 3),
         "random_recovery": round(rec_rand, 3),
+        "frangi_recovery": round(rec_frangi, 3),
+        "ridge_vs_frangi_div": round(frangi_div, 3),
         "support_fraction": round(res["support_fraction"], 3),
         "half_thickness": round(res["half_thickness"], 3),
     }
@@ -87,17 +97,34 @@ def run_matrix(radius=6.0, sigmas=(1, 2, 3), size=64, contrast=8.0, noise=2.0):
     return rows
 
 
-def null_controls(radius=6.0, sigmas=(1, 2, 3), size=64):
-    """Idempotence (snap a clean label) and the random-direction control on a
-    clean label. Both are first-class outputs, not flags."""
+def null_controls(radius=6.0, sigmas=(1, 2, 3), size=64, random_mag=2.0, seed=0):
+    """Two first-class controls on an already-clean label, not flags.
+
+    Idempotence: snap a clean label and require it barely moves and stays correct.
+    Random-direction: move the same clean label by `random_mag` voxels in random
+    directions and show it does NOT stay correct. Together these prove the snapper
+    preserves a good label while an arbitrary move of comparable size damages it, so
+    a recovery seen elsewhere is signal-seeking and not an artifact of moving labels.
+    """
     clean = synth.plant_tube_shift(0.0, size=size)
     vol, mask = clean["vol"], clean["label"]
     ref = _reference_points(clean)
     _, det = measure(vol, mask, radius=radius)
     pre = geom.nearest_distance(det["points"], ref)
+
     corrected, snapped, info, det2 = snap(vol, mask, radius=radius)
     move = float(np.median(np.linalg.norm(snapped - det2["points"], axis=1)))
     post = geom.nearest_distance(snapped, ref)
-    return {"idempotence_pre_error": round(pre, 3),
-            "idempotence_median_move": round(move, 3),
-            "idempotence_post_error": round(post, 3)}
+
+    # random-direction control on the SAME clean label, fixed magnitude
+    n = len(det2["points"])
+    mag = np.full(n, random_mag)
+    rand_pts = snap_random(det2, mag, seed=seed)
+    rand_post = geom.nearest_distance(rand_pts, ref)
+    return {
+        "idempotence_pre_error": round(pre, 3),
+        "idempotence_median_move": round(move, 3),
+        "idempotence_post_error": round(post, 3),
+        "random_control_mag": random_mag,
+        "random_control_post_error": round(rand_post, 3),
+    }
