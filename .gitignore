@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+subset/
+crux_out/
+.venv/
