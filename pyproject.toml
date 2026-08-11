@@ -23,3 +23,8 @@ test = ["pytest>=7"]
 
 [tool.setuptools]
 packages = ["ridgeline"]
+
+[tool.pytest.ini_options]
+markers = [
+    "slow: longer synthetic runs (snapper over many phantoms)",
+]

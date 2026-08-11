@@ -147,21 +147,26 @@ def witness_drift(ct, mask, witness_head="meijering", sigmas=(1, 2, 3, 4),
     }
 
 
-def witness_scored_snap(ct, mask, witness_head="meijering", wit_sigmas=(1, 2, 3, 4),
-                        snap_sigmas=(1, 2, 3), radius=6.0, n_sample=4000, seed=0,
-                        downsample=2):
+def witness_scored_snap(ct, mask, witness_head="meijering", snap_head=SNAP_HEAD,
+                        wit_sigmas=(1, 2, 3, 4), snap_sigmas=(1, 2, 3), radius=6.0,
+                        n_sample=4000, seed=0, downsample=2):
     """The real-data finding, non-circular by construction. Snap the label with the
-    SATO snapper, then score the move in an INDEPENDENT witness field (default
-    meijering). If the sato-snap lands the label on a higher independent ridge and a
-    random move of equal magnitude does not, the drift is real and not a sato artifact.
+    snapper head (sato by default), then score the move in an INDEPENDENT witness
+    field (default meijering). If the snap lands the label on a higher independent
+    ridge and a random move of equal magnitude does not, the drift is real and not an
+    artifact of the snap operator. The witness head must differ from the snap head
+    (enforced), so the score is never graded on the field the snap chased.
 
     Returns witness gain at the snapped vs original label plus the random control."""
     _assert_independent(witness_head)
+    if witness_head == snap_head:
+        raise ValueError(f"witness head {witness_head!r} equals the snap head; circular")
     rng = np.random.default_rng(seed)
     ct, msk = _downsample(ct.astype(np.float32), mask.astype(bool), downsample)
     W = witness_field(ct, witness_head=witness_head, sigmas=wit_sigmas)
 
-    corrected, snapped_pts, info, det = snap(ct, msk, sigmas=snap_sigmas, radius=radius)
+    corrected, snapped_pts, info, det = snap(ct, msk, head=snap_head,
+                                             sigmas=snap_sigmas, radius=radius)
     orig_pts = det["points"]
     move = snapped_pts - orig_pts
     mag = np.linalg.norm(move, axis=1)
@@ -182,7 +187,7 @@ def witness_scored_snap(ct, mask, witness_head="meijering", wit_sigmas=(1, 2, 3,
     ratio = snap_gain / (abs(rand_gain) + 1e-6)
     return {
         "witness_head": witness_head,
-        "snap_head": SNAP_HEAD,
+        "snap_head": snap_head,
         "downsample": downsample,
         "medial_points": int(n),
         "scored": int(len(sel)),
@@ -192,7 +197,7 @@ def witness_scored_snap(ct, mask, witness_head="meijering", wit_sigmas=(1, 2, 3,
         "witness_gain_snap": round(snap_gain, 4),
         "witness_gain_random": round(rand_gain, 4),
         "snap_vs_random_ratio": round(ratio, 2),
-        "verdict": ("sato-snap moves label onto the independent ridge, beats random"
+        "verdict": ("snap moves label onto the independent ridge, beats random"
                     if snap_gain > 2 * abs(rand_gain) and snap_gain > 0.005
                     else "no independent-witness gain over random"),
     }
