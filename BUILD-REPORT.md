@@ -36,7 +36,7 @@ medial point in Python. A single real recto patch has ~12k-18k medial points aft
 Replaced the per-point loop with batched primitives: `geom.sample_lines` samples every
 point in one `map_coordinates` call, `geom.parabola_peaks` refines all peaks at once,
 and `local_frames` now uses a batched `eigh`. Verified bit-identical to the scalar
-path on a tube phantom (`ok` mask exact, drift max abs diff 0.0), and the fast and slow
+path on a tube phantom (`ok` mask exact, drift max abs diff 0.0). The fast and slow
 test suites stay green. A full real sheet snap dropped from >120s to 17s.
 
 ## The decisive real-data finding (non-circular, on Dataset059 recto patches)
@@ -73,13 +73,13 @@ directed move captures 7x-12x more than that baseline, so the signal is real and
 directional, not diffuse.
 
 This is the result the crux experiment could not claim: the crux snapped sato and scored
-sato (circular). Here the snap head and both witness heads are different operators, and
+sato (circular). Here the snap head and both witness heads are different operators and
 the anti-circularity is enforced in code (`witness._assert_independent` rejects sato and
 frangi). Headline: **Dataset059 recto-surface labels sit a median ~3 voxels off the CT
-sheet ridge, and that offset is real and correctable**, demonstrated non-circularly on a
-dataset where the prior published surface-snapping attempt reported a negative.
+sheet ridge, that offset is real and it is correctable**, demonstrated non-circularly on
+a dataset where the prior published surface-snapping attempt reported a negative.
 
-### Robustness: the drift is not a boundary or thickness artifact
+### Not a boundary or thickness artifact
 
 The obvious objection is that a thick label near the volume face inflates the gain. So
 the same snap was scored twice, over all points and over interior points more than 8
@@ -93,8 +93,8 @@ patch 3  meijering all +0.2338 / interior +0.2391   raw_ct all +0.1410 / interio
 ```
 
 The random control stays small on the interior too (+0.008 to +0.028). So the drift is a
-distributed property of the surface, not an edge effect. This is the check Layer-3 failed
-below, run against Layer-2, and Layer-2 passes it.
+distributed property of the surface, not an edge effect. This is the check Layer-3 fails
+below. Layer-2 passes it.
 
 ## Layer-3 self-consistency on the real 056 -> 059 pair (honest negative for defects)
 
@@ -115,8 +115,35 @@ artifact of the 056->059 frame offset and the center-crop, not label errors: nea
 boundary the seed voxels that would explain them were cropped away. So the honest
 Layer-3 result on these three patches is **clean**: no interior geometry defect once the
 crop shell is accounted for. Layer-3 stays a validated gate (the unit test plants a voxel
-beyond the radius and it is caught), but it finds no real defect here, and the boundary
+beyond the radius and it is caught), but it finds no real defect here and the boundary
 shell must be masked before the out-of-radius count means anything. This is the same
 lesson the finding rests on: distrust anything that lives at the face.
+
+## Dataset-wide: the drift is systematic, not three patches
+
+The three development patches are the first three cases in the listing, so to rule out
+cherry-picking I drew a fixed-seed random sample of 40 patches spanning the whole
+s1/s4/s5 grid from the public server (`dl.ash2txt.org/datasets/seg-derived-recto-surfaces`,
+anonymous, numTraining 1754) and ran the same witness-scored snap on every one, in
+parallel. A patch "confirms" a witness when the snap gain beats twice the random gain and
+clears a 0.005 floor.
+
+```
+python3 scripts/batch_audit.py   (40 patches, 40 clean, all sheet-dominant)
+
+median snap move (full-res vox): median 2.29  IQR [1.99, 2.95]
+  [meijering] snap gain median +0.1105  interior +0.1128  random median +0.0089  | confirms 40/40
+  [raw_ct]    snap gain median +0.0611  interior +0.0626  random median +0.0023  | confirms 40/40
+```
+
+Every patch confirms on both witnesses, including raw_ct, the zeroth-order intensity
+witness that shares no machinery with the snap. Interior-only gains match the full gains,
+so it is not a boundary or thickness effect at scale either. The magnitude varies (a few
+patches already sit on the ridge and move under 0.1 voxels; the median is 2.29), which is
+the honest shape of a real bias rather than a constant offset. Read: **Dataset059's
+recto-surface labels are systematically about 2 to 3 voxels off the CT sheet ridge across
+scrolls s1, s4 and s5, measured with an operator the label never saw and the drift is
+correctable.** Per-patch numbers are in `evidence/audit40.json`.
+
 
 

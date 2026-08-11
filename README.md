@@ -24,18 +24,23 @@ medial graph so no point jumps to a neighbour structure, then re-voxelizes.
 
 ### The separation that keeps it honest
 
-The snapper optimizes sato. If the drift were then scored with sato, the snap would
-be graded on the exact field it chased. So every real-data claim is scored with a
-different operator:
+The engine picks a head from the structure of each label component: sato vesselness
+for rod-like tubes, a Descoteaux/Antiga sheetness for plate-like surfaces. Dataset059's
+recto patches are sheet-dominant, so the snap there runs on the sheetness head. If the
+drift were then scored with that same head, the snap would be graded on the exact field
+it chased. So every real-data claim is scored with a different operator:
 
-- The snapper moves labels using sato (bright ridges, `black_ridges=False`).
-- The witness scores the result with meijering, an independent ridge filter and with
-  a raw-CT intensity crest that shares no derivative machinery with sato at all.
+- The snapper moves labels with the structure's own head (sheetness for the recto
+  surfaces, sato for tubes), bright ridges, `black_ridges=False`.
+- The witness scores the result with meijering (an independent ridge filter from a
+  different family) and with a raw-CT intensity crest that shares no derivative
+  machinery with the snap at all.
 - Neither witness is frangi, the label producer's own operator.
 
-The separation is enforced in code, not just in comments: `witness.witness_field`
-raises if you pass it sato or frangi. The lift probe applies the same rule to its
-features and its scoring target.
+The separation is enforced in code, not just in comments: `witness.witness_field` raises
+if you pass it sato or frangi. `witness_scored_snap` raises if the witness head equals
+the snap head. The lift probe applies the same rule to its features and its scoring
+target.
 
 ### Four layers of evidence
 
@@ -87,24 +92,32 @@ Recovery fraction 0.92: the snap undid 92% of the planted damage as a learner se
 Null control delta -0.005 (snapping a clean label barely changes the probe). Random
 control recovery -0.02 (a random move does not recover). All three D-lift gates hold.
 
-Real Dataset059 patch, independent-witness drift (patch `s1_z10240_y2560_x2560`,
-witness at 2x audit downsample):
+Real Dataset059, the dataset-wide drift finding. All recto patches are sheet-dominant,
+so the snap runs on the sheetness head and the move is scored on two witnesses the snap
+never used. On a fixed-seed random sample of 40 patches spanning scrolls s1, s4 and s5
+(`scripts/batch_audit.py`, 2x audit downsample):
 
-| witness | contrast at label | higher ridge within 4 vox | move-toward vs random | offset to crest (vox) |
-| --- | --- | --- | --- | --- |
-| meijering | 1.49x | 97.3% | 10.3x | 2.83 |
-| raw-CT crest | 1.19x | 93.4% | 8.3x | 3.46 |
+| witness | median snap gain | median random gain | patches confirming |
+| --- | --- | --- | --- |
+| meijering (independent Hessian) | +0.110 | +0.009 | 40 / 40 |
+| raw-CT crest (no Hessian at all) | +0.061 | +0.002 | 40 / 40 |
 
-The label sits about 3 voxels off the CT ridge and moving toward it beats a
-random-direction move by 8x to 10x. The drift shows up in two independent operators,
-so it is not an artifact of one filter. This is measured with operators the snapper
-never used and the label generator never used, so it is not circular.
+Median move onto the ridge is 2.29 voxels (IQR 1.99 to 2.95). Every patch confirms on
+both witnesses, including the raw-CT crest that shares no machinery with the snap, so the
+gain cannot be an artifact of one filter. Restricting to interior medial points more than
+8 voxels from any face gives the same gain, so it is not a boundary or thickness effect.
+The labels sit systematically about 2 to 3 voxels off the CT sheet ridge, measured with
+operators the snapper never used and the label generator never used. This is not circular,
+and it is not three cherry-picked patches. Per-patch numbers are in `evidence/audit40.json`.
 
-Layer-3 self-consistency (seed 056 vs published 059): the seed is fully contained in
-the published label (containment 1.0) and 99.9% of the published label lies within EDT
-radius 3 of the seed, exactly the pipeline's stated dilation distance. The few
-thousand published voxels beyond that radius are flagged as provable pipeline
-inconsistencies with no truth model needed.
+Layer-3 self-consistency (seed 056 vs published 059): the seed is contained in the
+published label (containment 1.0) and 99.9% of the published label lies within EDT radius
+3 of the seed, the pipeline's stated dilation distance. The check reports a few thousand
+published voxels outside that radius, but 100% of them sit within 2 voxels of the volume
+face: they are an artifact of the 056 to 059 frame offset and the center-crop, not label
+errors. So Layer-3 finds no interior geometry defect on these patches. It stays a
+validated gate (the unit test plants a voxel beyond the radius and it is caught). The
+honest result here is clean once the crop shell is masked.
 
 ## Usage
 
@@ -117,8 +130,13 @@ ridgeline measure IMAGE.tif LABEL.tif  # independent-witness drift QA on a real 
 ridgeline snap IMAGE.tif LABEL.tif -o corrected.tif
 ```
 
-`demo` and `validate` need no data. `scripts/fetch_subset.sh` pulls a small dev subset
-of Dataset059 for `measure` and `snap`.
+`demo` and `validate` need no data. To reproduce the dataset-wide finding, pull the
+sampled patches and run the audit:
+
+```bash
+python3 scripts/download_sample.py       # 40 patches from dl.ash2txt.org (anonymous)
+python3 scripts/batch_audit.py           # the 40/40 witness-scored result above
+```
 
 ## Honest limitations
 
@@ -141,5 +159,6 @@ of Dataset059 for `measure` and `snap`.
 AI assistance (Claude, Anthropic) was used in developing this tool. The design, review
 and verification were done by the author. Every number in this README and in
 BUILD-REPORT.md was produced by running the code in this repository, not written by
-hand. Verified locally: `pytest` green, `ridgeline validate` passes its gates and the
-real-patch witness numbers reproduce on the downloaded Dataset059 patches.
+hand. Verified locally: `pytest` green (6 tests), `ridgeline validate` passes its gates,
+and the dataset-wide finding reproduces from `scripts/download_sample.py` then
+`scripts/batch_audit.py` (40 of 40 patches confirm on both independent witnesses).
