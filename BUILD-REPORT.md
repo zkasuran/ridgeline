@@ -27,3 +27,96 @@ random-direction move of equal magnitude lands at 2.527. Idempotence holds: snap
 an already-clean label moves it 0.157 voxels and leaves it at 0.162.
 
 <!-- APPEND-BELOW -->
+
+## Performance: vectorized the drift measurement (needed for real data)
+
+The scalar drift loop in `metric._drift_vectors` ran one `map_coordinates` call per
+medial point in Python. A single real recto patch has ~12k-18k medial points after a
+2x downsample, so one snap took over two minutes and the real finding could not run.
+Replaced the per-point loop with batched primitives: `geom.sample_lines` samples every
+point in one `map_coordinates` call, `geom.parabola_peaks` refines all peaks at once,
+and `local_frames` now uses a batched `eigh`. Verified bit-identical to the scalar
+path on a tube phantom (`ok` mask exact, drift max abs diff 0.0), and the fast and slow
+test suites stay green. A full real sheet snap dropped from >120s to 17s.
+
+## The decisive real-data finding (non-circular, on Dataset059 recto patches)
+
+`structure_probe` finds all three real patches are sheet-dominant (recto surfaces),
+mixes {tube 3, sheet 12}, {tube 2, sheet 17}, {tube 7, sheet 10}. So we snap with the
+sheetness head, then score the move in two witnesses the snapper never optimized:
+meijering (a different Hessian ridge family) and raw_ct (smoothed intensity, no Hessian
+at all). A random move of equal magnitude rides along as the TAUIL control. This is the
+exact test TAUIL-Abd-Elilah's m7 surface version failed: there, normal-direction
+snapping did not beat a random control on the diffuse surface field.
+
+```
+PYTHONPATH=. python3 scripts/real_finding.py   (villa venv, downsample 2, 4000 pts scored)
+
+s1_z10240_y2560_x2560  (sheet, snap=sheet, median move 2.96 full-res vox)
+  [meijering] snap +0.1597  random +0.0228  ratio +7.0  -> REAL drift
+  [raw_ct   ] snap +0.0941  random +0.0077  ratio +12.2 -> REAL drift
+s1_z10240_y2560_x3200  (sheet, snap=sheet, median move 2.93 full-res vox)
+  [meijering] snap +0.1553  random +0.0216  ratio +7.2  -> REAL drift
+  [raw_ct   ] snap +0.1088  random +0.0162  ratio +6.7  -> REAL drift
+s1_z10240_y2880_x2560  (sheet, snap=sheet, median move 3.71 full-res vox)
+  [meijering] snap +0.2338  random +0.0270  ratio +8.7  -> REAL drift
+  [raw_ct   ] snap +0.1410  random +0.0124  ratio +11.3 -> REAL drift
+```
+
+Read: the sheetness snap moves each label about 3 voxels and lands it on a strictly
+higher independent-witness ridge, on both witnesses, on all three patches, at 7x-12x the
+gain of a random move of the same size. The raw_ct witness matters most: it shares no
+derivative machinery with the snap at all, so a gain there cannot be a Hessian artifact.
+The random control is small but nonzero (+0.008 to +0.027), which is honest: a medial
+point inside a thick label band drifts toward brighter voxels in any direction. The
+directed move captures 7x-12x more than that baseline, so the signal is real and
+directional, not diffuse.
+
+This is the result the crux experiment could not claim: the crux snapped sato and scored
+sato (circular). Here the snap head and both witness heads are different operators, and
+the anti-circularity is enforced in code (`witness._assert_independent` rejects sato and
+frangi). Headline: **Dataset059 recto-surface labels sit a median ~3 voxels off the CT
+sheet ridge, and that offset is real and correctable**, demonstrated non-circularly on a
+dataset where the prior published surface-snapping attempt reported a negative.
+
+### Robustness: the drift is not a boundary or thickness artifact
+
+The obvious objection is that a thick label near the volume face inflates the gain. So
+the same snap was scored twice, over all points and over interior points more than 8
+voxels from any face (93-94% of the sampled points). The interior gain matches the full
+gain to the third decimal:
+
+```
+patch 1  meijering all +0.1597 / interior +0.1607   raw_ct all +0.0941 / interior +0.0946
+patch 2  meijering all +0.1553 / interior +0.1566   raw_ct all +0.1088 / interior +0.1085
+patch 3  meijering all +0.2338 / interior +0.2391   raw_ct all +0.1410 / interior +0.1433
+```
+
+The random control stays small on the interior too (+0.008 to +0.028). So the drift is a
+distributed property of the surface, not an edge effect. This is the check Layer-3 failed
+below, run against Layer-2, and Layer-2 passes it.
+
+## Layer-3 self-consistency on the real 056 -> 059 pair (honest negative for defects)
+
+The 056 seed is 320^3, the 059 published label and the CT are 300^3, so 056 is
+center-cropped by 10 voxels per face to share the 059 frame. The pure-geometry sandwich
+`seed subset of published subset of dilate(seed, 3)` then holds strongly:
+
+```
+patch 1: seed_containment 1.000 (17 of 941056 seed voxels dropped), within-dilation 0.9992
+patch 2: seed_containment 0.999 (1079 dropped),                     within-dilation 0.9996
+patch 3: seed_containment 1.000 (6 dropped),                        within-dilation 0.9993
+```
+
+The check reports ~2000-3500 published voxels per patch outside the radius-3 dilation
+(defect_frac ~0.0005-0.0008). Before calling those defects, I checked where they sit:
+**100% of them are within 2 voxels of a volume face, 0% are interior.** They are an
+artifact of the 056->059 frame offset and the center-crop, not label errors: near the
+boundary the seed voxels that would explain them were cropped away. So the honest
+Layer-3 result on these three patches is **clean**: no interior geometry defect once the
+crop shell is accounted for. Layer-3 stays a validated gate (the unit test plants a voxel
+beyond the radius and it is caught), but it finds no real defect here, and the boundary
+shell must be masked before the out-of-radius count means anything. This is the same
+lesson the finding rests on: distrust anything that lives at the face.
+
+

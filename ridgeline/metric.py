@@ -14,28 +14,30 @@ from .engine import ridge_field, structure_probe
 
 
 def _drift_vectors(R, points, frames, kind, radius, step, min_height, min_curv):
-    """Per-point drift vector (label -> ridge peak) and an ok mask."""
+    """Per-point drift vector (label -> ridge peak) and an ok mask. Vectorized over
+    points: each cross-structure direction is sampled for all points in one batched
+    call, then the parabola peaks are refined in bulk. A point is accepted only if
+    every one of its directions yields a valid peak, matching the scalar all-or-none
+    contract; a rejected point keeps zero drift."""
     dirs = geom.cross_directions(frames, kind)
     n = len(points)
     drift = np.zeros((n, 3))
     offs = np.zeros((n, len(dirs)))
-    ok = np.zeros(n, dtype=bool)
     heights = np.zeros(n)
-    for i in range(n):
-        good = True
-        vec = np.zeros(3)
-        for d, dvec in enumerate(dirs):
-            ts, vals, st = geom.sample_line(R, points[i], dvec[i], radius, step)
-            t, h, curv, okp = geom.parabola_peak(ts, vals, st, min_height, min_curv)
-            if not okp:
-                good = False
-                break
-            vec = vec + t * dvec[i]
-            offs[i, d] = t
-            heights[i] = max(heights[i], h)
-        if good:
-            drift[i] = vec
-            ok[i] = True
+    ok = np.ones(n, dtype=bool)
+    per_dir = []
+    for d, dvec in enumerate(dirs):
+        ts, vals, st = geom.sample_lines(R, points, dvec, radius, step)
+        t, h, _, okp = geom.parabola_peaks(ts, vals, st, min_height, min_curv)
+        offs[:, d] = t
+        heights = np.maximum(heights, np.where(okp, h, 0.0))
+        ok &= okp
+        per_dir.append((t, dvec))
+    for t, dvec in per_dir:
+        drift += t[:, None] * dvec
+    drift[~ok] = 0.0                                     # rejected points do not move
+    offs[~ok] = 0.0
+    heights[~ok] = 0.0
     return drift, offs, ok, heights
 
 
