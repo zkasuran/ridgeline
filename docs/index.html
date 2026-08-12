@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ridgeline — how far Dataset059 labels sit off the CT sheet ridge</title>
+<style>
+  :root{
+    --gold:#ffe08a; --violet:#5a3aa8; --ink:#1a212e; --soft:#68748a;
+    --panel:#ffffff; --line:#e6e2f2;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    color:var(--ink); background:linear-gradient(135deg,#fff2c8 0%,#d2caf8 100%);
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:64px 40px 80px}
+  header h1{font-size:40px;line-height:1.12;margin:0 0 10px;letter-spacing:-.5px}
+  header p.lede{font-size:20px;color:#33405a;margin:0 0 6px;max-width:820px}
+  header p.sub{font-size:16px;color:var(--soft);margin:2px 0 0}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:18px;
+    box-shadow:0 18px 50px rgba(46,30,90,.14);padding:34px 38px;margin-top:34px}
+  .card h2{font-size:15px;text-transform:uppercase;letter-spacing:1.5px;color:var(--violet);
+    margin:0 0 20px;font-weight:700}
+  .row{display:flex;align-items:baseline;gap:18px;padding:15px 0;border-top:1px solid #f0edf8}
+  .row:first-of-type{border-top:0}
+  .row .n{font-family:"DejaVu Sans Mono",ui-monospace,Menlo,monospace;font-size:30px;
+    font-weight:700;color:var(--violet);min-width:150px}
+  .row .n.mono{font-size:22px}
+  .row .t{font-size:18px;color:#2b3547;line-height:1.4}
+  .row .t b{color:var(--ink)}
+  .verdict{margin-top:26px;padding:20px 24px;border-radius:14px;
+    background:linear-gradient(120deg,#fff4cf,#efe9fb);border:1px solid #eadfae;font-size:19px;line-height:1.5}
+  .verdict b{color:#7a5a00}
+  footer{margin-top:34px;color:var(--soft);font-size:15px;line-height:1.7}
+  footer a{color:var(--violet);text-decoration:none;border-bottom:1px solid #d8cff0}
+  code{font-family:"DejaVu Sans Mono",ui-monospace,monospace;background:#f4f1fb;padding:1px 6px;border-radius:6px;font-size:.92em}
+  [data-step]{transition:opacity .25s ease}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Dataset059 recto labels sit a median ~2.3 voxels off the CT sheet ridge.</h1>
+    <p class="lede">A producer-agnostic label-localization audit for the Vesuvius Challenge, measured with an operator the label was never built from, so the drift is not circular.</p>
+    <p class="sub">ridgeline &middot; Vesuvius Challenge Progress Prizes &middot; scrolls s1, s4, s5</p>
+  </header>
+
+  <section id="finding" class="card">
+    <h2>The dataset-wide result</h2>
+    <div class="row" data-step><div class="n mono">40 patches</div><div class="t">a fixed-seed random sample across the s1, s4 and s5 grid, every one sheet-dominant recto surface</div></div>
+    <div class="row" data-step><div class="n">2.29 vox</div><div class="t">median label drift off the CT sheet ridge <b>(IQR 1.99 to 2.95)</b></div></div>
+    <div class="row" data-step><div class="n mono">40 / 40</div><div class="t"><b>meijering</b> witness, an independent Hessian ridge: snap <b>+0.111</b> vs random <b>+0.009</b></div></div>
+    <div class="row" data-step><div class="n mono">40 / 40</div><div class="t"><b>raw CT</b> witness, no Hessian at all: snap <b>+0.061</b> vs random <b>+0.002</b></div></div>
+    <div class="row" data-step><div class="n mono">snap &ne; witness</div><div class="t">the snap head and both witness heads are different operators, <b>enforced in code</b></div></div>
+    <div class="verdict" data-step><b>Real, directional, correctable drift.</b> The sheetness snap moves each label onto a higher independent-witness ridge, on every patch, on two witnesses, and interior-only points match. This is the test a prior published surface-snapping attempt failed on this data.</div>
+  </section>
+
+  <footer>
+    Source and reproducible audit: <a href="https://github.com/zkasuran/ridgeline">github.com/zkasuran/ridgeline</a><br>
+    Everything here is produced by <code>scripts/download_sample.py</code> then <code>scripts/batch_audit.py</code>; per-patch numbers are in <code>evidence/audit40.json</code>.<br>
+    AI assistance (Claude, Anthropic) was used in developing this work. The design, review and verification are the author's.
+  </footer>
+</div>
+<script>
+  window.setReveal = function(k, scope){
+    var root = scope ? document.querySelector(scope) : document;
+    var items = root.querySelectorAll('[data-step]');
+    for (var i=0;i<items.length;i++){ items[i].style.opacity = (i < k) ? '1' : '0.12'; }
+  };
+  window.setReveal(document.querySelectorAll('#finding [data-step]').length, '#finding');
+</script>
+</body>
+</html>
