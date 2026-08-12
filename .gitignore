@@ -9,3 +9,7 @@ subset/
 crux_out/
 # downloaded Dataset059 patches (fetch with scripts/download_sample.py)
 /data/
+# local demo-video lane artifacts (video lives on YouTube, not in the repo)
+/DEMO-ridgeline.mp4
+/upload-ridgeline/
+/CODEX-VIDEO-BRIEF.md
