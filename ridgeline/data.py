@@ -55,3 +55,48 @@ def crop_to_label(img, mask, margin=12):
     sl = tuple(slice(max(0, a.min() - margin), min(s, a.max() + margin + 1))
                for a, s in zip(idx, mask.shape))
     return img[sl], mask[sl]
+
+
+def _is_zarr(path):
+    """A path is a zarr store if it ends .zarr or is a directory holding zarr metadata."""
+    p = str(path)
+    if p.rstrip("/").endswith(".zarr"):
+        return True
+    return os.path.isdir(p) and (os.path.exists(os.path.join(p, "zarr.json"))
+                                 or os.path.exists(os.path.join(p, ".zgroup"))
+                                 or os.path.exists(os.path.join(p, ".zarray")))
+
+
+def load_array(path):
+    """Read a volume from a `.tif` or a zarr store into a numpy array. For an OME-Zarr
+    multiscale group the full-resolution level (dataset "0", else the first array) is
+    read, so the community formats the pipeline emits load without conversion."""
+    if not _is_zarr(path):
+        return tifffile.imread(path)
+    try:
+        import zarr
+    except ImportError as exc:
+        raise ImportError("reading a zarr store needs the 'zarr' package: pip install zarr") from exc
+    node = zarr.open(str(path), mode="r")
+    if hasattr(node, "shape"):                          # already an array
+        return np.asarray(node[:])
+    keys = list(node.array_keys()) if hasattr(node, "array_keys") else list(node.keys())
+    if not keys:
+        raise ValueError(f"{path}: zarr group has no arrays")
+    name = "0" if "0" in keys else keys[0]              # OME-Zarr full-res is dataset 0
+    return np.asarray(node[name][:])
+
+
+def write_mask(path, mask, chunk=128):
+    """Write a boolean/uint8 mask to `.tif` or a zarr array. A `.zarr` path is written
+    as a plain zarr v2 uint8 array (a community-standard Zarr array), so the corrected
+    label drops straight back into the pipeline."""
+    mask = mask.astype(np.uint8)
+    if not _is_zarr(path):
+        tifffile.imwrite(path, mask)
+        return
+    import zarr
+    chunks = tuple(min(chunk, s) for s in mask.shape)
+    arr = zarr.open_array(str(path), mode="w", shape=mask.shape, chunks=chunks,
+                          dtype="uint8", zarr_format=2)
+    arr[:] = mask

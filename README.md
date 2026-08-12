@@ -126,9 +126,14 @@ pip install -e .
 
 ridgeline demo                         # whole pipeline on synthetic tubes, no download
 ridgeline validate --json              # calibration matrix + controls + lift, with gates
-ridgeline measure IMAGE.tif LABEL.tif  # independent-witness drift QA on a real patch
-ridgeline snap IMAGE.tif LABEL.tif -o corrected.tif
+ridgeline measure IMAGE LABEL          # independent-witness drift QA on a real patch
+ridgeline snap IMAGE LABEL -o corrected.zarr
 ```
+
+`measure` and `snap` take a `.tif` or a zarr store for each of IMAGE and LABEL (an
+OME-Zarr multiscale group is read at full-resolution level 0), so a label straight out of
+the pipeline loads with no conversion. `snap -o out.zarr` writes the corrected label back
+as a Zarr array; `-o out.tif` writes a tif.
 
 `demo` and `validate` need no data. To reproduce the dataset-wide finding, pull the
 sampled patches and run the audit:

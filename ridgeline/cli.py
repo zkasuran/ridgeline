@@ -5,8 +5,11 @@
     ridgeline measure IMG LBL          independent-witness drift QA on a real patch
     ridgeline snap    IMG LBL [-o OUT] snap a real label, score it with the witness
 
-`demo` and `validate` need no data. `measure` and `snap` take an image tif and a
-label tif; a 320^3 seed label is center-cropped to the 300^3 image automatically.
+`demo` and `validate` need no data. `measure` and `snap` take an image and a label,
+each a `.tif` or a zarr store (OME-Zarr full-res level 0 is read), so a label straight
+out of the pipeline loads without conversion. A 320^3 seed label is center-cropped to
+the 300^3 image automatically. `snap -o out.zarr` writes the corrected label back as a
+Zarr array; `-o out.tif` writes a tif.
 """
 import argparse
 import json
@@ -19,10 +22,9 @@ def _fmt(d):
 
 
 def _load_pair(img_path, lbl_path):
-    import tifffile
-    from .data import center_crop
-    img = tifffile.imread(img_path).astype(np.float32)
-    lbl = tifffile.imread(lbl_path) > 0
+    from .data import center_crop, load_array
+    img = load_array(img_path).astype(np.float32)
+    lbl = load_array(lbl_path) > 0
     if lbl.shape != img.shape:                       # 320^3 seed -> 300^3 image
         lbl = center_crop(lbl, img.shape[0])
     return img, lbl
@@ -104,9 +106,8 @@ def cmd_measure(args):
 
 
 def cmd_snap(args):
-    import tifffile
     import scipy.ndimage as ndi
-    from .data import crop_to_label
+    from .data import crop_to_label, write_mask
     from .snapper import snap
     from . import witness
     img, lbl = _load_pair(args.image, args.label)
@@ -129,7 +130,7 @@ def cmd_snap(args):
         target = full[sl]
         us = up[:target.shape[0], :target.shape[1], :target.shape[2]]
         target[:us.shape[0], :us.shape[1], :us.shape[2]] = us.astype(np.uint8)
-        tifffile.imwrite(args.out, full)
+        write_mask(args.out, full)
         print("wrote corrected mask to", args.out, file=sys.stderr)
     return 0
 
