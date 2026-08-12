@@ -9,6 +9,7 @@ released set rather than a 40-patch sample. CPU-only, one BLAS thread per worker
 import os
 import sys
 import json
+import tempfile
 import urllib.request
 
 for _v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "NUMEXPR_NUM_THREADS"):
@@ -28,7 +29,7 @@ from ridgeline.witness import witness_field, _sample, _unit, WITNESS_HEADS
 BASE = "https://dl.ash2txt.org/datasets/seg-derived-recto-surfaces"
 CASES = os.path.join(REPO, "evidence", "all_cases.txt")
 OUT = os.path.join(REPO, "evidence", "audit_full.jsonl")
-SCRATCH = "/home/asuran/Downloads/hackathon-hq/work/vesuvius/labelqc/audit/full_scratch"
+SCRATCH = os.environ.get("RIDGELINE_SCRATCH", os.path.join(tempfile.gettempdir(), "ridgeline_scratch"))
 DOWNSAMPLE, N_SCORE, RADIUS, MARGIN = 2, 4000, 6.0, 8
 
 
