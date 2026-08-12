@@ -20,6 +20,7 @@ ridgeline = "ridgeline.cli:main"
 
 [project.optional-dependencies]
 test = ["pytest>=7"]
+zarr = ["zarr>=2.18"]
 
 [tool.setuptools]
 packages = ["ridgeline"]
