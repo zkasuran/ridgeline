@@ -64,7 +64,7 @@ def main():
                  + (f", plus {len(errors)} skipped." if errors else "."))
     lines.append("Drift is the median offset from the label medial surface to the CT sheet ridge, "
                  "in full-resolution voxels. It is scored non-circularly: the label was built "
-                 "without reading the CT, and the snap is graded on two operators it never uses.")
+                 "without reading the CT. The snap is graded on two operators it never uses.")
     lines.append("")
     lines.append("## Dataset-wide")
     lines.append("")

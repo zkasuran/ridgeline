@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ridgeline — how far Dataset059 labels sit off the CT sheet ridge</title>
+<title>ridgeline: how far Dataset059 labels sit off the CT sheet ridge</title>
 <style>
   :root{
     --gold:#ffe08a; --violet:#5a3aa8; --ink:#1a212e; --soft:#68748a;
@@ -43,24 +43,35 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>Dataset059 recto labels sit a median ~2.3 voxels off the CT sheet ridge.</h1>
+    <h1>Dataset059 recto labels sit a median 2.32 voxels off the CT sheet ridge, measured on all 1754 patches.</h1>
     <p class="lede">A producer-agnostic label-localization audit for the Vesuvius Challenge, measured with an operator the label was never built from, so the drift is not circular.</p>
     <p class="sub">ridgeline &middot; Vesuvius Challenge Progress Prizes &middot; scrolls s1, s4, s5</p>
   </header>
 
   <section id="finding" class="card">
     <h2>The dataset-wide result</h2>
-    <div class="row" data-step><div class="n mono">40 patches</div><div class="t">a fixed-seed random sample across the s1, s4 and s5 grid, every one sheet-dominant recto surface</div></div>
-    <div class="row" data-step><div class="n">2.29 vox</div><div class="t">median label drift off the CT sheet ridge <b>(IQR 1.99 to 2.95)</b></div></div>
-    <div class="row" data-step><div class="n mono">40 / 40</div><div class="t"><b>meijering</b> witness, an independent Hessian ridge: snap <b>+0.111</b> vs random <b>+0.009</b></div></div>
-    <div class="row" data-step><div class="n mono">40 / 40</div><div class="t"><b>raw CT</b> witness, no Hessian at all: snap <b>+0.061</b> vs random <b>+0.002</b></div></div>
+    <div class="row" data-step><div class="n mono">1754 patches</div><div class="t">every patch in the released set, all of s1 (1139), s4 (576) and s5 (39). 1716 sheet-dominant, 38 tube-dominant, 0 skipped</div></div>
+    <div class="row" data-step><div class="n">2.32 vox</div><div class="t">median label drift off the CT sheet ridge <b>(IQR 1.86 to 2.82, max 5.68)</b></div></div>
+    <div class="row" data-step><div class="n mono">1753 / 1754</div><div class="t"><b>meijering</b> witness, an independent Hessian ridge: median snap <b>+0.109</b> vs random <b>+0.007</b></div></div>
+    <div class="row" data-step><div class="n mono">1752 / 1754</div><div class="t"><b>raw CT</b> witness, no Hessian at all: median snap <b>+0.058</b> vs random <b>+0.001</b></div></div>
+    <div class="row" data-step><div class="n mono">333 patches</div><div class="t">sit more than 3 voxels off the ridge (19%). 58 sit more than 4 voxels off (3%)</div></div>
     <div class="row" data-step><div class="n mono">snap &ne; witness</div><div class="t">the snap head and both witness heads are different operators, <b>enforced in code</b></div></div>
-    <div class="verdict" data-step><b>Real, directional, correctable drift.</b> The sheetness snap moves each label onto a higher independent-witness ridge, on every patch, on two witnesses, and interior-only points match. This is the test a prior published surface-snapping attempt failed on this data.</div>
+    <div class="verdict" data-step><b>Real, directional, correctable drift.</b> The sheetness snap moves each label onto a higher independent-witness ridge on 1752 of 1754 patches on both witnesses at once. Interior-only points give the same gain. Two patches abstain (one already sits on the ridge at 0.001 voxels of move). This is the test a prior published surface-snapping attempt failed on this data. It is a label-localization measurement plus a corrector, not a model-accuracy gain.</div>
+  </section>
+
+  <section class="card">
+    <h2>Relabel these first</h2>
+    <div class="row" data-step><div class="n mono">5.68 vox</div><div class="t"><code>s1_z5568_y2496_x2880</code>, the worst patch in the set</div></div>
+    <div class="row" data-step><div class="n mono">5.47 vox</div><div class="t"><code>s1_z1152_y2304_x2880</code></div></div>
+    <div class="row" data-step><div class="n mono">5.46 vox</div><div class="t"><code>s1_z384_y2304_x4800</code></div></div>
+    <div class="row" data-step><div class="n mono">5.39 vox</div><div class="t"><code>s1_z5568_y3072_x4224</code></div></div>
+    <div class="row" data-step><div class="n mono">5.25 vox</div><div class="t"><code>s1_z1344_y2304_x4992</code></div></div>
+    <div class="row" data-step><div class="n mono">1754 rows</div><div class="t">the full ranking is in <code>evidence/defect_ranking.csv</code>, the top 40 are tabled in <code>evidence/DEFECT-REPORT.md</code></div></div>
   </section>
 
   <footer>
     Source and reproducible audit: <a href="https://github.com/zkasuran/ridgeline">github.com/zkasuran/ridgeline</a><br>
-    Everything here is produced by <code>scripts/download_sample.py</code> then <code>scripts/batch_audit.py</code>; per-patch numbers are in <code>evidence/audit40.json</code>.<br>
+    Everything here is produced by <code>scripts/audit_full.py</code> then <code>scripts/defect_report.py</code>; per-patch numbers are in <code>evidence/audit_full.jsonl</code> and <code>evidence/defect_ranking.csv</code>.<br>
     AI assistance (Claude, Anthropic) was used in developing this work. The design, review and verification are the author's.
   </footer>
 </div>

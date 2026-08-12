@@ -119,7 +119,7 @@ beyond the radius and it is caught), but it finds no real defect here and the bo
 shell must be masked before the out-of-radius count means anything. This is the same
 lesson the finding rests on: distrust anything that lives at the face.
 
-## Dataset-wide: the drift is systematic, not three patches
+## Dataset-wide pilot: the drift is systematic, not three patches
 
 The three development patches are the first three cases in the listing, so to rule out
 cherry-picking I drew a fixed-seed random sample of 40 patches spanning the whole
@@ -140,10 +140,56 @@ Every patch confirms on both witnesses, including raw_ct, the zeroth-order inten
 witness that shares no machinery with the snap. Interior-only gains match the full gains,
 so it is not a boundary or thickness effect at scale either. The magnitude varies (a few
 patches already sit on the ridge and move under 0.1 voxels; the median is 2.29), which is
-the honest shape of a real bias rather than a constant offset. Read: **Dataset059's
-recto-surface labels are systematically about 2 to 3 voxels off the CT sheet ridge across
-scrolls s1, s4 and s5, measured with an operator the label never saw and the drift is
-correctable.** Per-patch numbers are in `evidence/audit40.json`.
+the honest shape of a real bias rather than a constant offset. This 40-patch sample is now
+superseded by the full run below, which covers every released patch. Per-patch numbers are
+in `evidence/audit40.json`.
+
+## The full run: all 1754 patches of Dataset059
+
+The sample is no longer needed. `scripts/audit_full.py` streams every case in the released
+set, downloads each patch, runs the same witness-scored snap, deletes the raw tif and
+appends one JSON line to `evidence/audit_full.jsonl`. It is resumable and it ran to
+completion on all 1754 patches with 12 workers. `scripts/defect_report.py` then reduces
+the jsonl:
+
+```
+PYTHONPATH=. .venv/bin/python scripts/defect_report.py
+
+1754 clean, 0 skipped. median drift 2.32 vox. meijering 1753/1754, raw_ct 1752/1754.
+wrote DEFECT-REPORT.md + csv
+```
+
+The dataset-wide numbers, read straight out of `evidence/DEFECT-REPORT.md`:
+
+```
+patches audited: 1754   (s1 1139, s4 576, s5 39; 1716 sheet-dominant, 38 tube-dominant, 0 skipped)
+median drift off the CT sheet ridge: 2.32 voxels (IQR 1.86 to 2.82, max 5.68)
+patches over 3 voxels off: 333 (19%);  over 4 voxels: 58 (3%)
+meijering witness: median snap +0.109 vs random +0.007, confirms 1753/1754
+raw-CT witness:    median snap +0.058 vs random +0.001, confirms 1752/1754
+interior-only medians: meijering +0.112, raw_ct +0.059
+```
+
+Read: the median label in Dataset059 sits 2.32 voxels off the CT sheet ridge and the
+directed snap lands it on a strictly higher independent-witness ridge on 1752 of the 1754
+patches on both witnesses at once. The interior-only medians match the full medians to the
+third decimal, so the gain is not a boundary or thickness effect at full scale. The two
+non-confirming cases are honest abstentions rather than failures: `s5_z8500_y2660_x3040`
+already sits on the ridge (median move 0.001 voxels, so there is nothing to gain) and
+`s4_z8960_y2304_x768` has a snap gain that is positive on both witnesses but does not clear
+the 2x-random margin. Both are reported, neither is dropped.
+
+The tail is the actionable part. 333 patches drift more than 3 voxels and 58 drift more
+than 4. The worst is `s1_z5568_y2496_x2880` at 5.68 voxels, followed by
+`s1_z1152_y2304_x2880` (5.47), `s1_z384_y2304_x4800` (5.46), `s1_z5568_y3072_x4224` (5.39)
+and `s1_z1344_y2304_x4992` (5.25). Those five plus the rest of the top 40 are tabled in
+`evidence/DEFECT-REPORT.md` as a "relabel these first" list. Every patch, ranked by drift,
+is in `evidence/defect_ranking.csv`.
+
+What this is and is not: a label-localization measurement on the published labels plus a
+corrector that moves them onto the CT ridge, graded by two operators the snap never uses.
+It is not a model-accuracy claim. No nnU-Net was retrained here and none of these numbers
+predict a production Dice gain.
 
 
 

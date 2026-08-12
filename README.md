@@ -92,23 +92,32 @@ Recovery fraction 0.92: the snap undid 92% of the planted damage as a learner se
 Null control delta -0.005 (snapping a clean label barely changes the probe). Random
 control recovery -0.02 (a random move does not recover). All three D-lift gates hold.
 
-Real Dataset059, the dataset-wide drift finding. All recto patches are sheet-dominant,
-so the snap runs on the sheetness head and the move is scored on two witnesses the snap
-never used. On a fixed-seed random sample of 40 patches spanning scrolls s1, s4 and s5
-(`scripts/batch_audit.py`, 2x audit downsample):
+Real Dataset059, the dataset-wide drift finding. The recto patches are almost all
+sheet-dominant, so the snap runs on the sheetness head and the move is scored on two
+witnesses the snap never used. Run over **every patch in the released set**, all 1754 of
+them across scrolls s1 (1139), s4 (576) and s5 (39), by `scripts/audit_full.py` then
+`scripts/defect_report.py` at 2x audit downsample:
 
 | witness | median snap gain | median random gain | patches confirming |
 | --- | --- | --- | --- |
-| meijering (independent Hessian) | +0.110 | +0.009 | 40 / 40 |
-| raw-CT crest (no Hessian at all) | +0.061 | +0.002 | 40 / 40 |
+| meijering (independent Hessian) | +0.109 | +0.007 | 1753 / 1754 |
+| raw-CT crest (no Hessian at all) | +0.058 | +0.001 | 1752 / 1754 |
 
-Median move onto the ridge is 2.29 voxels (IQR 1.99 to 2.95). Every patch confirms on
-both witnesses, including the raw-CT crest that shares no machinery with the snap, so the
-gain cannot be an artifact of one filter. Restricting to interior medial points more than
-8 voxels from any face gives the same gain, so it is not a boundary or thickness effect.
-The labels sit systematically about 2 to 3 voxels off the CT sheet ridge, measured with
-operators the snapper never used and the label generator never used. This is not circular,
-and it is not three cherry-picked patches. Per-patch numbers are in `evidence/audit40.json`.
+Median move onto the ridge is 2.32 voxels (IQR 1.86 to 2.82, max 5.68). 1752 of 1754
+patches confirm on both witnesses at once, including the raw-CT crest that shares no
+machinery with the snap, so the gain cannot be an artifact of one filter. Restricting to
+interior medial points more than 8 voxels from any face gives the same medians (+0.112 and
++0.059), so it is not a boundary or thickness effect. Two patches abstain and are reported
+as such: `s5_z8500_y2660_x3040` already sits on the ridge (0.001 voxels of move) and
+`s4_z8960_y2304_x768` gains on both witnesses but misses the 2x-random margin. Nothing was
+skipped and nothing was dropped.
+
+The tail is the part a maintainer can act on. 333 patches (19%) drift more than 3 voxels
+and 58 (3%) drift more than 4. The 40 worst are tabled as a "relabel these first" list in
+`evidence/DEFECT-REPORT.md`, the full ranking of all 1754 is in
+`evidence/defect_ranking.csv` and per-patch raw output is in `evidence/audit_full.jsonl`.
+This is a label-localization measurement plus a corrector. It is not a model-accuracy
+claim.
 
 Layer-3 self-consistency (seed 056 vs published 059): the seed is contained in the
 published label (containment 1.0) and 99.9% of the published label lies within EDT radius
@@ -135,13 +144,17 @@ OME-Zarr multiscale group is read at full-resolution level 0), so a label straig
 the pipeline loads with no conversion. `snap -o out.zarr` writes the corrected label back
 as a Zarr array; `-o out.tif` writes a tif.
 
-`demo` and `validate` need no data. To reproduce the dataset-wide finding, pull the
-sampled patches and run the audit:
+`demo` and `validate` need no data. To reproduce the dataset-wide finding, run the full
+audit then the report. It streams every patch, deletes each raw tif after use and resumes
+from the jsonl if interrupted:
 
 ```bash
-python3 scripts/download_sample.py       # 40 patches from dl.ash2txt.org (anonymous)
-python3 scripts/batch_audit.py           # the 40/40 witness-scored result above
+WORKERS=12 PYTHONPATH=. python3 scripts/audit_full.py   # all 1754 patches, appends evidence/audit_full.jsonl
+PYTHONPATH=. python3 scripts/defect_report.py           # writes DEFECT-REPORT.md + defect_ranking.csv
 ```
+
+For a faster check, `python3 scripts/download_sample.py` then
+`python3 scripts/batch_audit.py` runs the same audit on a fixed-seed 40-patch sample.
 
 ## Honest limitations
 
@@ -165,5 +178,6 @@ AI assistance (Claude, Anthropic) was used in developing this tool. The design, 
 and verification were done by the author. Every number in this README and in
 BUILD-REPORT.md was produced by running the code in this repository, not written by
 hand. Verified locally: `pytest` green (6 tests), `ridgeline validate` passes its gates,
-and the dataset-wide finding reproduces from `scripts/download_sample.py` then
-`scripts/batch_audit.py` (40 of 40 patches confirm on both independent witnesses).
+and the dataset-wide finding reproduces from `scripts/audit_full.py` then
+`scripts/defect_report.py` (1752 of 1754 patches confirm on both independent witnesses,
+0 skipped).
